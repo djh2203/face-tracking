@@ -26,7 +26,7 @@ venv/
 ENV/
 env/
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -37,5 +37,12 @@ env/
 .DS_Store
 Thumbs.db
 
-# Models (如果会自动下载)
-models/*.onnx
+# Models (可选，如果不想把模型文件提交到 git)
+# models/*.onnx
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+temp/
