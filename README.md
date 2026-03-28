@@ -168,7 +168,6 @@ python .\main.py --score 0.95 --nms 0.4
 
 - **小图推理**：在 320x240 的缩略图上检测，速度提升 5-10 倍
 - **跳帧检测**：默认每 2 帧检测一次，可通过 `--detect_every` 调节
-- **智能复用**：只检测最佳人脸框（置信度最高），减少计算量
 - **EMA 平滑**：避免逐帧更新导致的视觉抖动
 
 #### 3. 健壮性设计
@@ -186,13 +185,11 @@ python .\main.py --score 0.95 --nms 0.4
     ↓ resize
 推理图 (320x240)
     ↓ YuNet 检测
-faces[n][15]  # n 个人脸，每个包含 15 个特征
-    ↓ 选取最佳
-best_face[15]  # [x, y, w, h, confidence, landmarks...]
-    ↓ 坐标还原
-原图坐标 (x*scale_x, y*scale_y, w*scale_x, h*scale_y)
-    ↓ EMA 滤波
-smooth_box -> 绘制到屏幕
+faces[n][15]  # n 个人脸，每个包含 15 个特征 [x, y, w, h, confidence, landmarks...]
+    ↓ 遍历所有人脸
+坐标还原到原图尺寸 (x*scale_x, y*scale_y, w*scale_x, h*scale_y)
+    ↓ EMA 滤波（为每个人脸分别平滑）
+smooth_boxes[n] -> 绘制到屏幕
 ```
 
 ---
@@ -271,9 +268,8 @@ face-tracking/
 
 如果你想在此基础上扩展功能，可以参考以下方向：
 
-1. **多人脸检测**：当前只取最佳人脸，可改为遍历所有 `faces` 数组
-2. **保存截图**：在检测到人脸时调用 `cv2.imwrite()` 保存
-3. **口罩检测**：结合其他模型判断是否佩戴口罩
-4. **GUI 界面**：使用 tkinter 或 PyQt 制作图形界面，替代命令行参数
-5. **日志记录**：添加 logging 模块记录检测历史
-6. **API 服务**：用 Flask/FastAPI 封装成 HTTP 接口
+1. **保存截图**：在检测到人脸时调用 `cv2.imwrite()` 保存
+2. **口罩检测**：结合其他模型判断是否佩戴口罩
+3. **GUI 界面**：使用 tkinter 或 PyQt 制作图形界面，替代命令行参数
+4. **日志记录**：添加 logging 模块记录检测历史
+5. **API 服务**：用 Flask/FastAPI 封装成 HTTP 接口
