@@ -1,14 +1,6 @@
-# 极简人脸框跟踪（零基础版）
+# 实时人脸框跟踪
 
-你只需要照着复制命令执行，就能打开摄像头并在画面里画出人脸框。
-
-## 你将得到什么
-
-- **轻量级**：不训练模型，不写复杂代码
-- **实时**：摄像头画面 + 人脸框 + FPS
-- **一键退出**：按 `Q` 或 `ESC`
-
-## 1) 安装 Python（只做一次）
+## 1) 安装 Python
 
 1. 打开微软商店或去官网安装 **Python 3.10+**
 2. 安装时勾选 **Add Python to PATH**
@@ -25,11 +17,7 @@ python --version
 
 在 PowerShell 里进入这个项目目录：
 
-```bash
-cd c:\github\face-tracking
-```
-
-建议先创建虚拟环境（更干净，不会把系统 Python 搞乱）：
+建议先创建虚拟环境：
 
 ```bash
 python -m venv .venv
@@ -66,6 +54,6 @@ python .\main.py
 pip install -r requirements.txt
 ```
 
-### 想更快（更轻量）
+### 更轻量
 
 你可以在 `main.py` 里把分辨率从 `640x480` 再降一点（例如 `480x360`），会更快。
