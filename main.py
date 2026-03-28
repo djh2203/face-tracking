@@ -1,4 +1,4 @@
-
+import argparse
 import time
 from pathlib import Path
 
@@ -40,16 +40,29 @@ def _open_camera(preferred_index: int | None) -> cv2.VideoCapture:
 
 def _visualize(
     frame: np.ndarray,
-    smooth_box: tuple[float, float, float, float] | None,
+    smooth_boxes: list[tuple[float, float, float, float]],
     fps: float,
     mode_text: str,
 ) -> np.ndarray:
     out = frame.copy()
-    if smooth_box is not None:
-        sx, sy, sw, sh = smooth_box
+    
+    # 绘制所有人脸框
+    for i, (sx, sy, sw, sh) in enumerate(smooth_boxes):
         x1, y1 = int(sx), int(sy)
         x2, y2 = int(sx + sw), int(sy + sh)
         cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        
+        # 可选：标注人脸编号
+        cv2.putText(
+            out,
+            f"Face {i+1}",
+            (x1, y1 - 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
 
     cv2.putText(
         out,
@@ -107,7 +120,7 @@ def main() -> None:
     fps = 0.0
 
     # 轻量平滑，减少框抖动
-    smooth_box: tuple[float, float, float, float] | None = None
+    smooth_boxes: list[tuple[float, float, float, float]] = []
     alpha = 0.35  # 越小越平滑，越大越跟手
     frame_idx = 0
     
@@ -139,25 +152,54 @@ def main() -> None:
                 small = cv2.resize(frame, (infer_w, infer_h))
                 detector.set_input_size((infer_w, infer_h))
                 faces = detector.infer(small)
-                if len(faces) > 0:
-                    best = max(faces, key=lambda f: float(f[14]))
-                    sx, sy, sw, sh = float(best[0]), float(best[1]), float(best[2]), float(best[3])
-
-                    # 安全缩放，避免除零
-                    scale_x = w / infer_w if infer_w > 0 else 1.0
-                    scale_y = h / infer_h if infer_h > 0 else 1.0
+                
+                # 安全缩放，避免除零
+                scale_x = w / infer_w if infer_w > 0 else 1.0
+                scale_y = h / infer_h if infer_h > 0 else 1.0
+                
+                # 处理所有检测到的人脸
+                current_boxes: list[tuple[float, float, float, float]] = []
+                for face in faces:
+                    sx, sy, sw, sh = float(face[0]), float(face[1]), float(face[2]), float(face[3])
                     bx, by, bw, bh = sx * scale_x, sy * scale_y, sw * scale_x, sh * scale_y
-
-                    if smooth_box is None:
-                        smooth_box = (bx, by, bw, bh)
-                    else:
-                        px, py, pw, ph = smooth_box
-                        smooth_box = (
-                            (1 - alpha) * px + alpha * bx,
-                            (1 - alpha) * py + alpha * by,
-                            (1 - alpha) * pw + alpha * bw,
-                            (1 - alpha) * ph + alpha * bh,
-                        )
+                    current_boxes.append((bx, by, bw, bh))
+                
+                # 更新平滑框（与当前检测结果匹配）
+                if len(current_boxes) == 0:
+                    smooth_boxes = []
+                else:
+                    new_smooth_boxes: list[tuple[float, float, float, float]] = []
+                    for curr_box in current_boxes:
+                        # 查找最近的前一帧框（简单的跟踪策略）
+                        matched_idx = None
+                        if len(smooth_boxes) > 0:
+                            # 找到距离最近的框
+                            min_dist = float('inf')
+                            for i, prev_box in enumerate(smooth_boxes):
+                                px, py, pw, ph = prev_box
+                                cx, cy, cw, ch = curr_box
+                                # 使用中心点距离
+                                dist = (px + pw/2 - cx - cw/2)**2 + (py + ph/2 - cy - ch/2)**2
+                                if dist < min_dist:
+                                    min_dist = dist
+                                    matched_idx = i
+                        
+                        if matched_idx is not None:
+                            # 应用平滑
+                            px, py, pw, ph = smooth_boxes[matched_idx]
+                            cx, cy, cw, ch = curr_box
+                            smoothed = (
+                                (1 - alpha) * px + alpha * cx,
+                                (1 - alpha) * py + alpha * cy,
+                                (1 - alpha) * pw + alpha * cw,
+                                (1 - alpha) * ph + alpha * ch,
+                            )
+                            new_smooth_boxes.append(smoothed)
+                        else:
+                            # 新检测到的人脸，直接初始化
+                            new_smooth_boxes.append(curr_box)
+                    
+                    smooth_boxes = new_smooth_boxes
 
             now = time.time()
             dt = now - last_t
@@ -167,9 +209,9 @@ def main() -> None:
 
             mode_text = (
                 f"Mode: YuNet s>={args.score:.2f} nms={args.nms:.2f} "
-                f"k={args.top_k} every={detect_every} w={infer_w}"
+                f"k={args.top_k} every={detect_every} w={infer_w} faces={len(smooth_boxes)}"
             )
-            frame = _visualize(frame, smooth_box, fps, mode_text)
+            frame = _visualize(frame, smooth_boxes, fps, mode_text)
 
             cv2.imshow("Face Box Tracking (Lightweight)", frame)
             key = cv2.waitKey(1) & 0xFF
